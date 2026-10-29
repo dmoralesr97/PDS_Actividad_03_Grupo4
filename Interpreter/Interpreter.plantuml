@@ -1,0 +1,154 @@
+@startuml Interpreter_ClassDiagram
+title Patrón Interpreter - Motor de reglas de elegibilidad de promociones
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+
+interface Expresion <<AbstractExpression>> {
+  + interpretar(ctx : ContextoPasajero) : boolean
+}
+
+class Comparacion <<TerminalExpression>> {
+  - variable : String
+  - operador : Operador
+  - valor : Object
+  + interpretar(ctx : ContextoPasajero) : boolean
+}
+
+class AndExpresion <<NonterminalExpression>> {
+  - izquierda : Expresion
+  - derecha : Expresion
+  + interpretar(ctx : ContextoPasajero) : boolean
+}
+
+class OrExpresion <<NonterminalExpression>> {
+  - izquierda : Expresion
+  - derecha : Expresion
+  + interpretar(ctx : ContextoPasajero) : boolean
+}
+
+class NotExpresion <<NonterminalExpression>> {
+  - operando : Expresion
+  + interpretar(ctx : ContextoPasajero) : boolean
+}
+
+enum Operador {
+  IGUAL
+  DISTINTO
+  MENOR
+  MENOR_IGUAL
+  MAYOR
+  MAYOR_IGUAL
+}
+
+class ContextoPasajero <<Context>> {
+  - variables : Map<String, Object>
+  + obtener(nombre : String) : Object
+  + definir(nombre : String, valor : Object) : void
+}
+
+class ParserReglas <<Client>> {
+  + parsear(texto : String) : Expresion
+}
+
+class MotorPromociones <<Client>> {
+  - promociones : List<Promocion>
+  + promocionesAplicables(ctx : ContextoPasajero) : List<Promocion>
+}
+
+class Promocion {
+  - nombre : String
+  - regla : Expresion
+  + esElegible(ctx : ContextoPasajero) : boolean
+}
+
+Expresion <|.. Comparacion
+Expresion <|.. AndExpresion
+Expresion <|.. OrExpresion
+Expresion <|.. NotExpresion
+
+AndExpresion o--> "2" Expresion : izquierda, derecha
+OrExpresion  o--> "2" Expresion : izquierda, derecha
+NotExpresion o--> "1" Expresion : operando
+
+Comparacion --> "1" Operador
+Comparacion ..> ContextoPasajero : consulta variables
+Expresion   ..> ContextoPasajero : <<use>>
+
+Promocion --> "1" Expresion : regla
+MotorPromociones "1" o--> "*" Promocion
+MotorPromociones ..> ParserReglas : usa
+MotorPromociones ..> ContextoPasajero : crea
+ParserReglas ..> Expresion : construye AST
+
+note right of Expresion
+  Cada regla de la gramática
+  se representa con una clase.
+  Una sentencia = árbol (AST).
+end note
+
+@enduml
+
+
+@startuml Interpreter_AST_Ejemplo
+title AST de: (categoria == "BLACK" OR millas >= 50000) AND NOT (destino == "SCL")
+
+skinparam shadowing false
+
+object "raiz : AndExpresion" as and1
+object "o1 : OrExpresion" as or1
+object "n1 : NotExpresion" as not1
+object "c1 : Comparacion" as c1 {
+  variable = "categoria"
+  operador = IGUAL
+  valor = "BLACK"
+}
+object "c2 : Comparacion" as c2 {
+  variable = "millas"
+  operador = MAYOR_IGUAL
+  valor = 50000
+}
+object "c3 : Comparacion" as c3 {
+  variable = "destino"
+  operador = IGUAL
+  valor = "SCL"
+}
+
+and1 --> or1 : izquierda
+and1 --> not1 : derecha
+or1 --> c1 : izquierda
+or1 --> c2 : derecha
+not1 --> c3 : operando
+
+@enduml
+
+
+@startuml Interpreter_Secuencia
+title Colaboración: evaluación de una promoción
+
+skinparam shadowing false
+
+actor Cliente
+participant ":MotorPromociones" as M
+participant ":ParserReglas" as P
+participant ":ContextoPasajero" as C
+participant "regla :AndExpresion" as A
+participant ":OrExpresion" as O
+participant ":Comparacion" as K
+
+Cliente -> M : promocionesAplicables(datos)
+M -> P : parsear(textoRegla)
+P --> M : Expresion (raíz del AST)
+M -> C : new / definir(variables)
+M -> A : interpretar(ctx)
+A -> O : interpretar(ctx)
+O -> K : interpretar(ctx)
+K -> C : obtener("categoria")
+C --> K : "BLACK"
+K --> O : true
+O --> A : true
+A --> M : resultado
+M --> Cliente : promociones elegibles
+
+@enduml

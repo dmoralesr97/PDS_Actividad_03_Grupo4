@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patrón Interpreter – Motor de promociones</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #69718a; --border: #dde1ea;
+    --term: #0f7b6c; --nonterm: #5b4bc4; --ctx: #b26a00; --client: #1b6fd1;
+    --ok: #1a8a4a; --ko: #c93a3a; --skip: #9aa1b5; --active: #ffe58f;
+    --code: #f0f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141a; --panel: #1b1e27; --text: #e6e9f2; --muted: #8e97b0; --border: #2e3342;
+      --term: #3cc3ae; --nonterm: #9a8cff; --ctx: #f0a63a; --client: #5aa2ff;
+      --ok: #4cd081; --ko: #ff7070; --skip: #646c84; --active: #5c4a00; --code: #232733;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 24px 8px; }
+  h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: var(--muted); max-width: 900px; }
+  main { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; padding: 16px 24px 32px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 2px; }
+  input, select, textarea, button { font: inherit; color: inherit; }
+  input, select, textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--code); }
+  textarea { font-family: ui-monospace, Menlo, monospace; font-size: 13px; min-height: 76px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--code); cursor: pointer; }
+  button:hover { border-color: var(--client); }
+  button.primary { background: var(--client); border-color: var(--client); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  .error { color: var(--ko); font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  /* AST */
+  .tree, .tree ul { list-style: none; margin: 0; padding-left: 22px; position: relative; }
+  .tree { padding-left: 0; }
+  .tree ul::before { content: ""; position: absolute; left: 8px; top: 0; bottom: 14px; border-left: 1px solid var(--border); }
+  .tree li { position: relative; padding: 4px 0; }
+  .tree ul > li::before { content: ""; position: absolute; left: -14px; top: 19px; width: 14px; border-top: 1px solid var(--border); }
+  .node { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px; background: var(--code); transition: background .2s, border-color .2s, opacity .2s; }
+  .node.term { border-left: 5px solid var(--term); }
+  .node.nonterm { border-left: 5px solid var(--nonterm); }
+  .node .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .node .txt { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .node .res { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; color: #fff; display: none; }
+  .node.active { background: var(--active); border-color: #e0a800; }
+  .node.true { border-color: var(--ok); } .node.true .res { display: inline-block; background: var(--ok); }
+  .node.false { border-color: var(--ko); } .node.false .res { display: inline-block; background: var(--ko); }
+  .node.skipped { opacity: .45; border-style: dashed; }
+  .node.skipped .res { display: inline-block; background: var(--skip); }
+  .verdict { margin-top: 10px; font-weight: 700; min-height: 22px; }
+  .verdict.true { color: var(--ok); } .verdict.false { color: var(--ko); }
+  /* promotions + log */
+  .promos { display: grid; gap: 8px; }
+  .promo { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+  .promo:hover { border-color: var(--client); }
+  .promo code { display: block; font-size: 12px; color: var(--muted); }
+  .badge { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 10px; white-space: nowrap; background: var(--code); color: var(--muted); }
+  .badge.true { background: var(--ok); color: #fff; } .badge.false { background: var(--ko); color: #fff; }
+  #log { font-family: ui-monospace, Menlo, monospace; font-size: 12px; max-height: 220px; overflow: auto; background: var(--code); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }
+  #log .in { color: var(--client); } #log .t { color: var(--ok); } #log .f { color: var(--ko); } #log .s { color: var(--skip); }
+  .grammar { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--code); padding: 8px 10px; border-radius: 6px; white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Patrón Interpreter · Elegibilidad de promociones</h1>
+  <p>Escribe una regla, define al pasajero y observa cómo el texto se convierte en un árbol de expresiones (AST) que se evalúa de forma recursiva contra un contexto.</p>
+</header>
+
+<main>
+  <div>
+    <section>
+      <h2>1 · Regla (lenguaje del dominio)</h2>
+      <textarea id="regla" spellcheck="false"></textarea>
+      <div class="error" id="error"></div>
+      <div class="grammar">regla       ::= disyuncion
+disyuncion  ::= conjuncion ("OR" conjuncion)*
+conjuncion  ::= negacion ("AND" negacion)*
+negacion    ::= "NOT" negacion | primario
+primario    ::= comparacion | "(" regla ")"
+comparacion ::= VARIABLE OP VALOR   (== != &lt; &lt;= &gt; &gt;=)</div>
+    </section>
+
+    <section>
+      <h2>2 · Contexto (pasajero y reserva)</h2>
+      <div class="row">
+        <div><label>categoria</label>
+          <select id="categoria"><option>BLACK</option><option>GOLD</option><option selected>SILVER</option><option>BASIC</option></select></div>
+        <div><label>clase</label>
+          <select id="clase"><option selected>ECONOMY</option><option>PREMIUM</option><option>BUSINESS</option></select></div>
+        <div><label>millas</label><input id="millas" type="number" value="52000"></div>
+        <div><label>edad</label><input id="edad" type="number" value="34"></div>
+        <div><label>destino</label><input id="destino" value="MIA"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>3 · Interpretar</h2>
+      <div class="btns">
+        <button class="primary" id="btnEval">Evaluar todo</button>
+        <button id="btnPaso">Paso a paso</button>
+        <button id="btnSig" disabled>Siguiente ▸</button>
+        <button id="btnReset">Reiniciar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Participantes</h2>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--nonterm)"></i>NonterminalExpression (And / Or / Not)</span>
+        <span><i class="dot" style="background:var(--term)"></i>TerminalExpression (Comparacion)</span>
+        <span><i class="dot" style="background:var(--ctx)"></i>Context (ContextoPasajero)</span>
+        <span><i class="dot" style="background:var(--client)"></i>Client (Parser / Motor)</span>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Árbol sintáctico abstracto (AST)</h2>
+      <ul class="tree" id="ast"><li style="color:var(--muted)">Escribe una regla para construir el árbol…</li></ul>
+      <div class="verdict" id="verdict"></div>
+    </section>
+
+    <section>
+      <h2>MotorPromociones · promociones aplicables al pasajero</h2>
+      <div class="promos" id="promos"></div>
+      <div class="btns"><span style="color:var(--muted);font-size:12px">Haz clic en una promoción para cargar su regla en el editor.</span></div>
+    </section>
+
+    <section>
+      <h2>Traza de interpretación</h2>
+      <div id="log"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* ============ Participantes del patrón (según Interpreter.plantuml) ============ */
+
+// Context
+class ContextoPasajero {
+  constructor() { this.variables = new Map(); this.listener = null; }
+  definir(nombre, valor) { this.variables.set(nombre, valor); }
+  obtener(nombre) {
+    if (!this.variables.has(nombre)) throw new Error(`Variable no definida en el contexto: "${nombre}"`);
+    return this.variables.get(nombre);
+  }
+  // Gancho para observar el recorrido (solo para la visualización, no forma parte del patrón)
+  entrar(nodo) { this.listener && this.listener({ tipo: 'entrar', nodo }); }
+  salir(nodo, valor) { this.listener && this.listener({ tipo: 'salir', nodo, valor }); return valor; }
+}
+
+// AbstractExpression
+class Expresion {
+  interpretar(ctx) { throw new Error('interpretar() no implementado'); }
+  hijos() { return []; }
+}
+
+// TerminalExpression
+class Comparacion extends Expresion {
+  constructor(variable, operador, valor) { super(); this.variable = variable; this.operador = operador; this.valor = valor; }
+  interpretar(ctx) {
+    ctx.entrar(this);
+    const v = ctx.obtener(this.variable);
+    const o = this.valor;
+    let r;
+    switch (this.operador) {
+      case '==': r = v === o; break;
+      case '!=': r = v !== o; break;
+      default:
+        if (typeof v !== 'number' || typeof o !== 'number')
+          throw new Error(`El operador ${this.operador} requiere números (${this.variable} = ${JSON.stringify(v)})`);
+        r = this.operador === '<' ? v < o : this.operador === '<=' ? v <= o : this.operador === '>' ? v > o : v >= o;
+    }
+    return ctx.salir(this, r);
+  }
+  etiqueta() { return `${this.variable} ${this.operador} ${JSON.stringify(this.valor)}`; }
+}
+
+// NonterminalExpression
+class AndExpresion extends Expresion {
+  constructor(izquierda, derecha) { super(); this.izquierda = izquierda; this.derecha = derecha; }
+  interpretar(ctx) {
+    ctx.entrar(this);
+    return ctx.salir(this, this.izquierda.interpretar(ctx) && this.derecha.interpretar(ctx));
+  }
+  hijos() { return [this.izquierda, this.derecha]; }
+  etiqueta() { return 'AndExpresion'; }
+}
+class OrExpresion extends Expresion {
+  constructor(izquierda, derecha) { super(); this.izquierda = izquierda; this.derecha = derecha; }
+  interpretar(ctx) {
+    ctx.entrar(this);
+    return ctx.salir(this, this.izquierda.interpretar(ctx) || this.derecha.interpretar(ctx));
+  }
+  hijos() { return [this.izquierda, this.derecha]; }
+  etiqueta() { return 'OrExpresion'; }
+}
+class NotExpresion extends Expresion {
+  constructor(operando) { super(); this.operando = operando; }
+  interpretar(ctx) {
+    ctx.entrar(this);
+    return ctx.salir(this, !this.operando.interpretar(ctx));
+  }
+  hijos() { return [this.operando]; }
+  etiqueta() { return 'NotExpresion'; }
+}
+
+// Client: construye el AST a partir del texto (descenso recursivo según la gramática)
+class ParserReglas {
+  parsear(texto) {
+    this.tokens = this.tokenizar(texto); this.i = 0;
+    if (!this.tokens.length) throw new Error('La regla está vacía');
+    const raiz = this.disyuncion();
+    if (this.i < this.tokens.length) throw new Error(`Token inesperado: "${this.tokens[this.i].v}"`);
+    return raiz;
+  }
+  tokenizar(s) {
+    const re = /\s*(?:(==|!=|<=|>=|<|>)|(\()|(\))|"([^"]*)"|(-?\d+(?:\.\d+)?)|([A-Za-z_]\w*))/y;
+    const out = []; let m, fin = 0; re.lastIndex = 0;
+    while (re.lastIndex < s.length && (m = re.exec(s))) {
+      fin = re.lastIndex;
+      if (m[1]) out.push({ t: 'op', v: m[1] });
+      else if (m[2]) out.push({ t: '(', v: '(' });
+      else if (m[3]) out.push({ t: ')', v: ')' });
+      else if (m[4] !== undefined) out.push({ t: 'str', v: m[4] });
+      else if (m[5]) out.push({ t: 'num', v: parseFloat(m[5]) });
+      else { const w = m[6], u = w.toUpperCase();
+        out.push(['AND', 'OR', 'NOT'].includes(u) ? { t: u, v: u } : { t: 'id', v: w }); }
+    }
+    if (s.slice(fin).trim()) throw new Error(`Carácter no válido cerca de: "${s.slice(fin).trim().slice(0, 10)}"`);
+    return out;
+  }
+  sig() { return this.tokens[this.i]; }
+  disyuncion() { let n = this.conjuncion(); while (this.sig()?.t === 'OR') { this.i++; n = new OrExpresion(n, this.conjuncion()); } return n; }
+  conjuncion() { let n = this.negacion(); while (this.sig()?.t === 'AND') { this.i++; n = new AndExpresion(n, this.negacion()); } return n; }
+  negacion() { if (this.sig()?.t === 'NOT') { this.i++; return new NotExpresion(this.negacion()); } return this.primario(); }
+  primario() {
+    const t = this.sig();
+    if (!t) throw new Error('Se esperaba una expresión al final de la regla');
+    if (t.t === '(') {
+      this.i++; const n = this.disyuncion();
+      if (this.sig()?.t !== ')') throw new Error('Falta cerrar el paréntesis');
+      this.i++; return n;
+    }
+    if (t.t !== 'id') throw new Error(`Se esperaba una variable y llegó "${t.v}"`);
+    this.i++;
+    const op = this.sig(); if (op?.t !== 'op') throw new Error(`Falta el operador después de "${t.v}"`);
+    this.i++;
+    const val = this.sig(); if (!val || (val.t !== 'str' && val.t !== 'num')) throw new Error(`Falta el valor después de "${t.v} ${op.v}" (los textos van entre comillas)`);
+    this.i++;
+    return new Comparacion(t.v, op.v, val.v);
+  }
+}
+
+class Promocion {
+  constructor(nombre, texto, regla) { this.nombre = nombre; this.texto = texto; this.regla = regla; }
+  esElegible(ctx) { return this.regla.interpretar(ctx); }
+}
+
+// Client
+class MotorPromociones {
+  constructor(parser) { this.parser = parser; this.promociones = []; }
+  registrar(nombre, texto) { this.promociones.push(new Promocion(nombre, texto, this.parser.parsear(texto))); }
+  promocionesAplicables(ctx) { return this.promociones.filter(p => p.esElegible(ctx)); }
+}
+
+/* ============ Interfaz ============ */
+const $ = id => document.getElementById(id);
+const parser = new ParserReglas();
+const motor = new MotorPromociones(parser);
+[
+  ['Upgrade de cabina', '(categoria == "BLACK" OR millas >= 50000) AND NOT (destino == "SCL")'],
+  ['Tarifa infante / adulto mayor', 'clase == "ECONOMY" AND (edad < 12 OR edad >= 65)'],
+  ['Acceso sala VIP', 'categoria == "BLACK" OR (categoria == "GOLD" AND clase != "ECONOMY")'],
+  ['Bono de millas', 'millas < 10000 AND destino != "SCL"'],
+].forEach(([n, t]) => motor.registrar(n, t));
+
+let ast = null, ids = new Map(), eventos = [], pos = 0;
+
+function crearContexto() {
+  const c = new ContextoPasajero();
+  c.definir('categoria', $('categoria').value);
+  c.definir('clase', $('clase').value);
+  c.definir('millas', Number($('millas').value));
+  c.definir('edad', Number($('edad').value));
+  c.definir('destino', $('destino').value.trim().toUpperCase());
+  return c;
+}
+
+function log(html) { const l = $('log'); l.insertAdjacentHTML('beforeend', html + '\n'); l.scrollTop = l.scrollHeight; }
+const desc = n => n instanceof Comparacion ? n.etiqueta() : n.etiqueta();
+
+function renderNodo(n) {
+  const id = ids.size; ids.set(n, id);
+  const term = n instanceof Comparacion;
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="node ${term ? 'term' : 'nonterm'}" data-id="${id}">
+    <span class="kind">${term ? 'Terminal' : 'Nonterminal'}</span>
+    <span class="txt"></span><span class="res"></span></span>`;
+  li.querySelector('.txt').textContent = desc(n);
+  const hs = n.hijos();
+  if (hs.length) { const ul = document.createElement('ul'); hs.forEach(h => ul.appendChild(renderNodo(h))); li.appendChild(ul); }
+  return li;
+}
+const el = n => document.querySelector(`.node[data-id="${ids.get(n)}"]`);
+
+function limpiar() {
+  document.querySelectorAll('.node').forEach(e => { e.className = e.className.replace(/\b(active|true|false|skipped)\b/g, '').trim(); e.querySelector('.res').textContent = ''; });
+  $('verdict').textContent = ''; $('verdict').className = 'verdict'; $('log').innerHTML = '';
+  eventos = []; pos = 0; $('btnSig').disabled = true;
+}
+
+function construir() {
+  $('error').textContent = '';
+  try {
+    ast = parser.parsear($('regla').value);
+  } catch (e) { ast = null; $('error').textContent = '⚠ ' + e.message; $('ast').innerHTML = ''; return false; }
+  ids = new Map(); const ul = $('ast'); ul.innerHTML = ''; ul.appendChild(renderNodo(ast));
+  limpiar(); return true;
+}
+
+function ejecutar() {
+  const ctx = crearContexto(), evs = [];
+  ctx.listener = e => evs.push(e);
+  const r = ast.interpretar(ctx);
+  return { evs, r };
+}
+
+function aplicarEvento(e) {
+  document.querySelectorAll('.node.active').forEach(x => x.classList.remove('active'));
+  const nodo = el(e.nodo);
+  if (e.tipo === 'entrar') {
+    nodo.classList.add('active');
+    log(`<span class="in">▸ interpretar</span>  ${esc(desc(e.nodo))}`);
+  } else {
+    nodo.classList.add(String(e.valor));
+    nodo.querySelector('.res').textContent = e.valor ? 'true' : 'false';
+    log(`<span class="${e.valor ? 't' : 'f'}">◂ ${e.valor}</span>      ${esc(desc(e.nodo))}`);
+  }
+}
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function marcarOmitidos(evs) {
+  const visitados = new Set(evs.map(e => e.nodo));
+  (function rec(n) { n.hijos().forEach(h => { if (!visitados.has(h)) { const x = el(h); x.classList.add('skipped'); x.querySelector('.res').textContent = 'omitido (cortocircuito)'; } rec(h); }); })(ast);
+}
+
+function mostrarVeredicto(r) {
+  const v = $('verdict'); v.textContent = r ? '✔ La regla se cumple: el pasajero es elegible' : '✘ La regla no se cumple: el pasajero no es elegible';
+  v.className = 'verdict ' + r;
+}
+
+function evaluarTodo() {
+  if (!construir()) return;
+  try {
+    const { evs, r } = ejecutar();
+    evs.forEach(aplicarEvento);
+    document.querySelectorAll('.node.active').forEach(x => x.classList.remove('active'));
+    marcarOmitidos(evs); mostrarVeredicto(r);
+  } catch (e) { $('error').textContent = '⚠ ' + e.message; }
+}
+
+function iniciarPaso() {
+  if (!construir()) return;
+  try { eventos = ejecutar().evs; } catch (e) { $('error').textContent = '⚠ ' + e.message; return; }
+  pos = 0; $('btnSig').disabled = false; siguiente();
+}
+function siguiente() {
+  if (pos >= eventos.length) return;
+  aplicarEvento(eventos[pos++]);
+  if (pos >= eventos.length) {
+    document.querySelectorAll('.node.active').forEach(x => x.classList.remove('active'));
+    marcarOmitidos(eventos); mostrarVeredicto(eventos[eventos.length - 1].valor); $('btnSig').disabled = true;
+  }
+}
+
+function pintarPromos() {
+  const cont = $('promos'); cont.innerHTML = '';
+  let ctx; try { ctx = crearContexto(); } catch { return; }
+  motor.promociones.forEach(p => {
+    let r, txt;
+    try { r = p.esElegible(ctx); txt = r ? 'Aplica' : 'No aplica'; } catch (e) { r = null; txt = 'Error'; }
+    const d = document.createElement('div'); d.className = 'promo';
+    d.innerHTML = `<div><strong></strong><code></code></div><span class="badge ${r}">${txt}</span>`;
+    d.querySelector('strong').textContent = p.nombre; d.querySelector('code').textContent = p.texto;
+    d.onclick = () => { $('regla').value = p.texto; construir(); };
+    cont.appendChild(d);
+  });
+}
+
+$('btnEval').onclick = evaluarTodo;
+$('btnPaso').onclick = iniciarPaso;
+$('btnSig').onclick = siguiente;
+$('btnReset').onclick = construir;
+$('regla').oninput = construir;
+['categoria', 'clase', 'millas', 'edad', 'destino'].forEach(id => $(id).addEventListener('input', () => { pintarPromos(); if (ast) limpiar(); }));
+
+$('regla').value = motor.promociones[0].texto;
+construir(); pintarPromos();
+</script>
+</body>
+</html>
