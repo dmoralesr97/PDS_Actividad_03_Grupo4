@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patrón 02 - Expedientes documentales con Iterator</title>
+  <style>
+    :root {
+      --azul-950: #0d2743;
+      --azul-900: #123052;
+      --azul-700: #1f4d7a;
+      --azul-500: #3777ad;
+      --azul-100: #eaf2fb;
+      --dorado: #dcae2b;
+      --dorado-claro: #fff7d8;
+      --gris-950: #111827;
+      --gris-700: #4b5563;
+      --gris-500: #6b7280;
+      --gris-300: #d1d5db;
+      --gris-200: #e5e7eb;
+      --gris-100: #f3f4f6;
+      --blanco: #ffffff;
+      --verde: #117a4b;
+      --verde-fondo: #eaf8f1;
+      --rojo: #b42318;
+      --rojo-fondo: #fff1f0;
+      --naranja: #b95d0a;
+      --naranja-fondo: #fff4e6;
+      --sombra: 0 14px 35px rgba(18, 48, 82, 0.10);
+      --radio: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--gris-950);
+      background:
+        radial-gradient(circle at top right, rgba(220, 174, 43, 0.15), transparent 24rem),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fa 100%);
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .encabezado {
+      position: relative;
+      overflow: hidden;
+      padding: 34px 24px 30px;
+      color: var(--blanco);
+      background: linear-gradient(115deg, var(--azul-950), var(--azul-700));
+      border-bottom: 5px solid var(--dorado);
+    }
+
+    .encabezado::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      top: -115px;
+      width: 330px;
+      height: 330px;
+      border: 55px solid rgba(255, 255, 255, 0.07);
+      border-radius: 50%;
+    }
+
+    .encabezado-contenido,
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .etiqueta-curso {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 999px;
+      color: #f4d77e;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      line-height: 1.08;
+    }
+
+    .subtitulo {
+      max-width: 900px;
+      margin: 14px 0 0;
+      color: #dbe9f6;
+      font-size: 1.06rem;
+    }
+
+    .datos-actividad {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .dato-cabecera {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.20);
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+
+    main { padding: 28px 0 48px; }
+
+    .panel {
+      margin-bottom: 22px;
+      padding: 24px;
+      background: var(--blanco);
+      border: 1px solid #dce6f0;
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+    }
+
+    .panel h2,
+    .panel h3 { margin-top: 0; color: var(--azul-900); }
+    .panel h2 { margin-bottom: 6px; font-size: 1.42rem; }
+    .panel-intro { margin: 0 0 18px; color: var(--gris-700); }
+
+    .resumen-patron {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .tarjeta-patron {
+      min-height: 128px;
+      padding: 15px;
+      background: #f8fbff;
+      border: 1px solid #d7e4f2;
+      border-top: 4px solid var(--dorado);
+      border-radius: 12px;
+    }
+
+    .tarjeta-patron strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--azul-900);
+    }
+
+    .tarjeta-patron p {
+      margin: 0;
+      color: var(--gris-700);
+      font-size: 0.9rem;
+    }
+
+    .integrantes {
+      margin: 18px 0 0;
+      padding-left: 20px;
+      columns: 2;
+      color: var(--gris-700);
+    }
+
+    .integrantes li { margin-bottom: 5px; }
+
+    .dos-columnas {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .subpanel {
+      padding: 18px;
+      background: #fbfdff;
+      border: 1px solid #dce6f0;
+      border-radius: 14px;
+    }
+
+    .subpanel h3 { margin-bottom: 12px; font-size: 1.08rem; }
+
+    .formulario-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .campo {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .campo-completo { grid-column: 1 / -1; }
+
+    label {
+      color: var(--azul-900);
+      font-size: 0.9rem;
+      font-weight: 750;
+    }
+
+    .obligatorio { color: var(--rojo); }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 43px;
+      padding: 10px 12px;
+      color: var(--gris-950);
+      background: var(--blanco);
+      border: 1px solid #cbd8e5;
+      border-radius: 9px;
+      font: inherit;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--azul-500);
+      box-shadow: 0 0 0 3px rgba(55, 119, 173, 0.14);
+      outline: none;
+    }
+
+    .acciones {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      min-height: 42px;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 750;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.48; }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(31, 77, 122, 0.28);
+      outline-offset: 2px;
+    }
+
+    .boton-principal {
+      color: var(--blanco);
+      background: var(--azul-700);
+      box-shadow: 0 7px 16px rgba(31, 77, 122, 0.22);
+    }
+
+    .boton-principal:hover:not(:disabled) { background: var(--azul-900); }
+
+    .boton-secundario {
+      color: var(--azul-900);
+      background: var(--azul-100);
+      border: 1px solid #c9dbed;
+    }
+
+    .boton-dorado {
+      color: #503b00;
+      background: var(--dorado-claro);
+      border: 1px solid #ead17a;
+    }
+
+    .boton-neutro {
+      color: var(--gris-700);
+      background: var(--gris-100);
+      border: 1px solid var(--gris-300);
+    }
+
+    .mensaje {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-weight: 650;
+    }
+
+    .mensaje.visible { display: block; }
+    .mensaje.exito { color: var(--verde); background: var(--verde-fondo); border: 1px solid #a8dfc3; }
+    .mensaje.error { color: var(--rojo); background: var(--rojo-fondo); border: 1px solid #f0b5b0; }
+    .mensaje.info { color: var(--azul-700); background: var(--azul-100); border: 1px solid #c9dbed; }
+
+    .metricas {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metrica {
+      padding: 15px;
+      text-align: center;
+      background: #f8fbff;
+      border: 1px solid #d7e4f2;
+      border-radius: 12px;
+    }
+
+    .metrica strong {
+      display: block;
+      color: var(--azul-900);
+      font-size: 1.45rem;
+    }
+
+    .metrica span { color: var(--gris-700); font-size: 0.86rem; }
+
+    .tabla-contenedor {
+      overflow-x: auto;
+      border: 1px solid #dce6f0;
+      border-radius: 12px;
+    }
+
+    table { width: 100%; border-collapse: collapse; min-width: 680px; }
+
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #e3ebf3;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--blanco);
+      background: var(--azul-700);
+      font-size: 0.86rem;
+    }
+
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #f8fbff; }
+    .estado-vacio-tabla { text-align: center; color: var(--gris-500); }
+
+    .insignia {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .insignia-pendiente { color: var(--naranja); background: var(--naranja-fondo); }
+    .insignia-revisado { color: var(--azul-700); background: var(--azul-100); }
+    .insignia-aprobado { color: var(--verde); background: var(--verde-fondo); }
+
+    .controles-recorrido {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.65fr) minmax(0, 1.35fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .selector-recorrido {
+      padding: 18px;
+      background: #f8fbff;
+      border: 1px solid #d7e4f2;
+      border-radius: 14px;
+    }
+
+    .selector-recorrido h3 { margin-bottom: 8px; }
+
+    .estado-iterador {
+      margin-top: 16px;
+      padding: 12px;
+      color: var(--gris-700);
+      background: var(--blanco);
+      border: 1px dashed #b9c9da;
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+
+    .estado-iterador strong { color: var(--azul-900); }
+
+    .resultado-recorrido {
+      min-height: 330px;
+      padding: 18px;
+      background: linear-gradient(145deg, var(--azul-950), #142f4c);
+      border-radius: 14px;
+      color: var(--blanco);
+    }
+
+    .resultado-vacio {
+      display: grid;
+      place-items: center;
+      min-height: 290px;
+      padding: 22px;
+      color: #bfcfe0;
+      text-align: center;
+      border: 1px dashed rgba(255, 255, 255, 0.24);
+      border-radius: 11px;
+    }
+
+    .documento-actual { display: none; }
+    .documento-actual.visible { display: block; }
+
+    .documento-actual .secuencia {
+      color: #f4d77e;
+      font-size: 0.85rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .documento-actual h3 {
+      margin: 8px 0 4px;
+      color: var(--blanco);
+      font-size: 1.45rem;
+    }
+
+    .documento-actual .codigo { color: #cfe1f2; }
+
+    .documento-datos {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .documento-dato {
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9px;
+    }
+
+    .documento-dato span {
+      display: block;
+      color: #bfcfe0;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .documento-dato strong { display: block; margin-top: 3px; color: var(--blanco); }
+
+    .evidencia-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 0.95fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .traza {
+      min-height: 250px;
+      max-height: 390px;
+      overflow: auto;
+      margin: 0;
+      padding: 16px 16px 16px 36px;
+      background: #fbfdff;
+      border: 1px solid #dce6f0;
+      border-radius: 12px;
+      color: var(--gris-700);
+    }
+
+    .traza li { margin-bottom: 8px; }
+    .traza li::marker { color: var(--dorado); font-weight: 800; }
+
+    .codigo-cliente {
+      min-height: 250px;
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      color: #d9e7f5;
+      background: #0d2137;
+      border-radius: 12px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+    }
+
+    .nota-encapsulacion {
+      margin-top: 18px;
+      padding: 14px 16px;
+      color: #5d4700;
+      background: var(--dorado-claro);
+      border: 1px solid #ead17a;
+      border-left: 5px solid var(--dorado);
+      border-radius: 10px;
+    }
+
+    footer {
+      padding: 24px;
+      color: #dbe9f6;
+      background: var(--azul-950);
+      text-align: center;
+      border-top: 4px solid var(--dorado);
+    }
+
+    @media (max-width: 980px) {
+      .resumen-patron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dos-columnas,
+      .controles-recorrido,
+      .evidencia-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 650px) {
+      .panel { padding: 18px; }
+      .formulario-grid,
+      .metricas,
+      .documento-datos,
+      .resumen-patron { grid-template-columns: 1fr; }
+      .integrantes { columns: 1; }
+      .encabezado { padding-inline: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="encabezado">
+    <div class="encabezado-contenido">
+      <div class="etiqueta-curso">Actividad 03 · Patrón de comportamiento</div>
+      <h1>Gestión de expedientes documentales con Iterator</h1>
+      <p class="subtitulo">
+        Demostración de recorridos independientes sobre una colección privada de documentos, sin exponer su representación interna.
+      </p>
+      <div class="datos-actividad">
+        <span class="dato-cabecera"><strong>Grupo:</strong> 4</span>
+        <span class="dato-cabecera"><strong>Patrón:</strong> Iterator</span>
+        <span class="dato-cabecera"><strong>Entrega:</strong> jueves, 29 de octubre de 2026</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="titulo-patron">
+      <h2 id="titulo-patron">Participantes aplicados al dominio</h2>
+      <p class="panel-intro">
+        El expediente encapsula su colección; cada recorrido conserva su propio estado y el cliente solo utiliza la interfaz común del iterador.
+      </p>
+
+      <div class="resumen-patron">
+        <article class="tarjeta-patron">
+          <strong>Aggregate</strong>
+          <p><code>ColeccionDocumentos</code> declara las operaciones para crear recorridos.</p>
+        </article>
+        <article class="tarjeta-patron">
+          <strong>ConcreteAggregate</strong>
+          <p><code>ExpedienteDocumental</code> mantiene los documentos privados y fabrica iteradores.</p>
+        </article>
+        <article class="tarjeta-patron">
+          <strong>Iterator</strong>
+          <p><code>IteradorDocumento</code> define primero, siguiente, actual y reiniciar.</p>
+        </article>
+        <article class="tarjeta-patron">
+          <strong>ConcreteIterator</strong>
+          <p>Existen recorridos para todos los documentos y únicamente los pendientes.</p>
+        </article>
+        <article class="tarjeta-patron">
+          <strong>Client</strong>
+          <p><code>RegistroDocumentalApp</code> recorre sin conocer el arreglo interno.</p>
+        </article>
+      </div>
+
+      <ul class="integrantes">
+        <li>Garcia Garcia Kenny Kevin</li>
+        <li>Jalca Saltos Luigi Alexander</li>
+        <li>Morales Rivera David Andres</li>
+        <li>Narvaez Lopez Jilson Ariel</li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="titulo-expediente">
+      <h2 id="titulo-expediente">1. Construir la colección documental</h2>
+      <p class="panel-intro">
+        Agregue documentos al expediente. La interfaz nunca recibe acceso directo a la colección privada <code>#documentos</code>.
+      </p>
+
+      <div class="dos-columnas">
+        <div class="subpanel">
+          <h3>Nuevo documento</h3>
+          <form id="formDocumento" novalidate>
+            <div class="formulario-grid">
+              <div class="campo">
+                <label for="codigo">Código <span class="obligatorio">*</span></label>
+                <input id="codigo" name="codigo" maxlength="20" placeholder="DOC-001" required>
+              </div>
+              <div class="campo">
+                <label for="titulo">Título <span class="obligatorio">*</span></label>
+                <input id="titulo" name="titulo" maxlength="100" placeholder="Contrato de prestación de servicios" required>
+              </div>
+              <div class="campo">
+                <label for="tipo">Tipo</label>
+                <select id="tipo" name="tipo">
+                  <option value="CONTRATO">Contrato</option>
+                  <option value="INFORME">Informe</option>
+                  <option value="PLANO">Plano</option>
+                  <option value="ACTA">Acta</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="estado">Estado</label>
+                <select id="estado" name="estado">
+                  <option value="PENDIENTE">Pendiente</option>
+                  <option value="REVISADO">Revisado</option>
+                  <option value="APROBADO">Aprobado</option>
+                </select>
+              </div>
+              <div class="campo campo-completo">
+                <label for="fechaRegistro">Fecha de registro</label>
+                <input id="fechaRegistro" name="fechaRegistro" type="date" value="2026-10-29">
+              </div>
+            </div>
+
+            <div class="acciones">
+              <button type="submit" class="boton-principal">Agregar documento</button>
+              <button type="button" id="btnCargarEjemplo" class="boton-dorado">Cargar expediente de ejemplo</button>
+              <button type="button" id="btnVaciar" class="boton-neutro">Vaciar expediente</button>
+            </div>
+            <div id="mensajeColeccion" class="mensaje" role="alert" aria-live="polite"></div>
+          </form>
+        </div>
+
+        <div class="subpanel">
+          <h3>Expediente EXP-2026-004</h3>
+          <p class="panel-intro">Asunto: Proyecto de ampliación institucional</p>
+          <div class="metricas">
+            <div class="metrica">
+              <strong id="metricaTotal">0</strong>
+              <span>documentos</span>
+            </div>
+            <div class="metrica">
+              <strong id="metricaPendientes">0</strong>
+              <span>pendientes</span>
+            </div>
+            <div class="metrica">
+              <strong id="metricaTipos">0</strong>
+              <span>tipos distintos</span>
+            </div>
+          </div>
+          <div class="nota-encapsulacion">
+            <strong>Encapsulación:</strong> la tabla se genera utilizando un iterador de “todos”; no mediante un getter que devuelva el arreglo interno.
+          </div>
+        </div>
+      </div>
+
+      <div class="tabla-contenedor" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Código</th>
+              <th>Título</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoDocumentos">
+            <tr><td colspan="6" class="estado-vacio-tabla">El expediente todavía no contiene documentos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="titulo-recorrido">
+      <h2 id="titulo-recorrido">2. Probar el patrón Iterator</h2>
+      <p class="panel-intro">
+        Cree un iterador, avance paso a paso o complete el recorrido. Cada iterador mantiene su propia posición y trabaja sobre un snapshot independiente.
+      </p>
+
+      <div class="controles-recorrido">
+        <div class="selector-recorrido">
+          <h3>Configurar recorrido</h3>
+          <div class="campo">
+            <label for="tipoRecorrido">Iterador concreto</label>
+            <select id="tipoRecorrido">
+              <option value="TODOS">IteradorTodosDocumentos</option>
+              <option value="PENDIENTES">IteradorDocumentosPendientes</option>
+            </select>
+          </div>
+          <div class="acciones">
+            <button type="button" id="btnCrearIterador" class="boton-principal">Crear iterador</button>
+            <button type="button" id="btnSiguiente" class="boton-secundario" disabled>Siguiente</button>
+            <button type="button" id="btnRecorrerTodo" class="boton-dorado" disabled>Recorrer completo</button>
+            <button type="button" id="btnReiniciar" class="boton-neutro" disabled>Reiniciar</button>
+          </div>
+          <div id="estadoIterador" class="estado-iterador">
+            <strong>Estado:</strong> todavía no se ha creado un iterador.
+          </div>
+          <div id="mensajeRecorrido" class="mensaje" role="alert" aria-live="polite"></div>
+        </div>
+
+        <div class="resultado-recorrido">
+          <div id="resultadoVacio" class="resultado-vacio">
+            Cree un iterador y presione “Siguiente” para obtener el primer documento sin acceder a la estructura interna del expediente.
+          </div>
+          <article id="documentoActual" class="documento-actual" aria-live="polite">
+            <div id="secuenciaActual" class="secuencia">Elemento 1</div>
+            <h3 id="tituloActual">—</h3>
+            <div id="codigoActual" class="codigo">—</div>
+            <div class="documento-datos">
+              <div class="documento-dato"><span>Tipo</span><strong id="tipoActual">—</strong></div>
+              <div class="documento-dato"><span>Estado</span><strong id="estadoActual">—</strong></div>
+              <div class="documento-dato"><span>Fecha</span><strong id="fechaActual">—</strong></div>
+              <div class="documento-dato"><span>Recorrido</span><strong id="recorridoActual">—</strong></div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="evidencia-grid">
+        <div>
+          <h3>Traza de operaciones</h3>
+          <ol id="traza" class="traza">
+            <li>La traza mostrará cómo el cliente solicita y consume el iterador.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Código equivalente del cliente</h3>
+          <pre id="codigoCliente" class="codigo-cliente">// Cree un iterador para generar el código de demostración.</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Grupo 4 · Actividad 03 · Patrón 02 · Iterator
+  </footer>
+
+  <script>
+    "use strict";
+
+    const TipoDocumento = Object.freeze({
+      CONTRATO: "CONTRATO",
+      INFORME: "INFORME",
+      PLANO: "PLANO",
+      ACTA: "ACTA",
+      OTRO: "OTRO"
+    });
+
+    const EstadoDocumento = Object.freeze({
+      PENDIENTE: "PENDIENTE",
+      REVISADO: "REVISADO",
+      APROBADO: "APROBADO"
+    });
+
+    // ELEMENTO DEL DOMINIO.
+    class Documento {
+      #codigo;
+      #titulo;
+      #tipo;
+      #estado;
+      #fechaRegistro;
+
+      constructor(codigo, titulo, tipo, estado, fechaRegistro) {
+        this.#codigo = String(codigo ?? "").trim().toUpperCase();
+        this.#titulo = String(titulo ?? "").trim();
+        this.#tipo = tipo;
+        this.#estado = estado;
+        this.#fechaRegistro = fechaRegistro || null;
+        this.#validar();
+      }
+
+      estaPendiente() {
+        return this.#estado === EstadoDocumento.PENDIENTE;
+      }
+
+      obtenerResumen() {
+        return `${this.#codigo} - ${this.#titulo}`;
+      }
+
+      toJSON() {
+        return {
+          codigo: this.#codigo,
+          titulo: this.#titulo,
+          tipo: this.#tipo,
+          estado: this.#estado,
+          fechaRegistro: this.#fechaRegistro
+        };
+      }
+
+      #validar() {
+        if (!this.#codigo) {
+          throw new Error("El código del documento es obligatorio.");
+        }
+        if (!this.#titulo) {
+          throw new Error("El título del documento es obligatorio.");
+        }
+        if (!Object.values(TipoDocumento).includes(this.#tipo)) {
+          throw new Error("El tipo de documento no es válido.");
+        }
+        if (!Object.values(EstadoDocumento).includes(this.#estado)) {
+          throw new Error("El estado del documento no es válido.");
+        }
+      }
+    }
+
+    // ITERATOR: contrato común para los recorridos.
+    class IteradorDocumento {
+      constructor() {
+        if (new.target === IteradorDocumento) {
+          throw new Error("IteradorDocumento es una abstracción y no puede instanciarse directamente.");
+        }
+      }
+
+      primero() { throw new Error("Método primero() no implementado."); }
+      haySiguiente() { throw new Error("Método haySiguiente() no implementado."); }
+      siguiente() { throw new Error("Método siguiente() no implementado."); }
+      actual() { throw new Error("Método actual() no implementado."); }
+      reiniciar() { throw new Error("Método reiniciar() no implementado."); }
+    }
+
+    // CONCRETE ITERATOR: recorre todos los elementos en orden de inserción.
+    class IteradorTodosDocumentos extends IteradorDocumento {
+      #documentos;
+      #posicion;
+      #documentoActual;
+
+      constructor(documentos) {
+        super();
+        this.#documentos = [...documentos];
+        this.primero();
+      }
+
+      primero() {
+        this.#posicion = 0;
+        this.#documentoActual = null;
+      }
+
+      haySiguiente() {
+        return this.#posicion < this.#documentos.length;
+      }
+
+      siguiente() {
+        if (!this.haySiguiente()) {
+          this.#documentoActual = null;
+          return null;
+        }
+        this.#documentoActual = this.#documentos[this.#posicion];
+        this.#posicion += 1;
+        return this.#documentoActual;
+      }
+
+      actual() {
+        return this.#documentoActual;
+      }
+
+      reiniciar() {
+        this.primero();
+      }
+    }
+
+    // CONCRETE ITERATOR: aplica un criterio de recorrido sin modificar el Aggregate ni el Client.
+    class IteradorDocumentosPendientes extends IteradorDocumento {
+      #documentosPendientes;
+      #posicion;
+      #documentoActual;
+
+      constructor(documentos) {
+        super();
+        this.#documentosPendientes = documentos.filter((documento) => documento.estaPendiente());
+        this.primero();
+      }
+
+      primero() {
+        this.#posicion = 0;
+        this.#documentoActual = null;
+      }
+
+      haySiguiente() {
+        return this.#posicion < this.#documentosPendientes.length;
+      }
+
+      siguiente() {
+        if (!this.haySiguiente()) {
+          this.#documentoActual = null;
+          return null;
+        }
+        this.#documentoActual = this.#documentosPendientes[this.#posicion];
+        this.#posicion += 1;
+        return this.#documentoActual;
+      }
+
+      actual() {
+        return this.#documentoActual;
+      }
+
+      reiniciar() {
+        this.primero();
+      }
+    }
+
+    // AGGREGATE: contrato para crear iteradores.
+    class ColeccionDocumentos {
+      constructor() {
+        if (new.target === ColeccionDocumentos) {
+          throw new Error("ColeccionDocumentos es una abstracción y no puede instanciarse directamente.");
+        }
+      }
+
+      crearIteradorTodos() { throw new Error("Método crearIteradorTodos() no implementado."); }
+      crearIteradorPendientes() { throw new Error("Método crearIteradorPendientes() no implementado."); }
+    }
+
+    // CONCRETE AGGREGATE: protege la representación interna.
+    class ExpedienteDocumental extends ColeccionDocumentos {
+      #numero;
+      #asunto;
+      #documentos;
+
+      constructor(numero, asunto) {
+        super();
+        this.#numero = String(numero ?? "").trim();
+        this.#asunto = String(asunto ?? "").trim();
+        this.#documentos = [];
+      }
+
+      agregarDocumento(documento) {
+        if (!(documento instanceof Documento)) {
+          throw new TypeError("Solo se pueden agregar instancias de Documento.");
+        }
+        const codigo = documento.toJSON().codigo;
+        const existe = this.#documentos.some((item) => item.toJSON().codigo === codigo);
+        if (existe) {
+          throw new Error(`Ya existe un documento con el código ${codigo}.`);
+        }
+        this.#documentos.push(documento);
+      }
+
+      crearIteradorTodos() {
+        return new IteradorTodosDocumentos(this.#obtenerSnapshot());
+      }
+
+      crearIteradorPendientes() {
+        return new IteradorDocumentosPendientes(this.#obtenerSnapshot());
+      }
+
+      cantidad() {
+        return this.#documentos.length;
+      }
+
+      vaciar() {
+        this.#documentos = [];
+      }
+
+      obtenerResumen() {
+        return `${this.#numero} - ${this.#asunto}`;
+      }
+
+      #obtenerSnapshot() {
+        return [...this.#documentos];
+      }
+    }
+
+    // CLIENT: consume el Aggregate y el Iterator sin conocer el arreglo interno.
+    class RegistroDocumentalApp {
+      constructor() {
+        this.expediente = new ExpedienteDocumental(
+          "EXP-2026-004",
+          "Proyecto de ampliación institucional"
+        );
+        this.iteradorActivo = null;
+        this.tipoRecorrido = null;
+        this.elementosVisitados = 0;
+        this.traza = [];
+        this.inicializarEventos();
+        this.renderizarColeccion();
+      }
+
+      inicializarEventos() {
+        document.getElementById("formDocumento").addEventListener("submit", (evento) => {
+          evento.preventDefault();
+          this.agregarDocumentoDesdeFormulario();
+        });
+
+        document.getElementById("btnCargarEjemplo").addEventListener("click", () => this.cargarEjemplo());
+        document.getElementById("btnVaciar").addEventListener("click", () => this.vaciarExpediente());
+        document.getElementById("btnCrearIterador").addEventListener("click", () => this.crearRecorrido());
+        document.getElementById("btnSiguiente").addEventListener("click", () => this.avanzar());
+        document.getElementById("btnRecorrerTodo").addEventListener("click", () => this.recorrerCompleto());
+        document.getElementById("btnReiniciar").addEventListener("click", () => this.reiniciarRecorrido());
+      }
+
+      agregarDocumentoDesdeFormulario() {
+        try {
+          const datos = Object.fromEntries(new FormData(document.getElementById("formDocumento")).entries());
+          const documento = new Documento(
+            datos.codigo,
+            datos.titulo,
+            datos.tipo,
+            datos.estado,
+            datos.fechaRegistro
+          );
+          this.expediente.agregarDocumento(documento);
+          this.invalidarIterador("La colección cambió; cree un nuevo iterador para recorrer el snapshot actualizado.");
+          this.renderizarColeccion();
+          document.getElementById("formDocumento").reset();
+          document.getElementById("fechaRegistro").value = "2026-10-29";
+          this.mostrarMensaje("mensajeColeccion", `Documento ${documento.obtenerResumen()} agregado correctamente.`, "exito");
+        } catch (error) {
+          this.mostrarMensaje("mensajeColeccion", error.message, "error");
+        }
+      }
+
+      cargarEjemplo() {
+        try {
+          this.expediente.vaciar();
+          [
+            new Documento("CTR-001", "Contrato marco de construcción", TipoDocumento.CONTRATO, EstadoDocumento.PENDIENTE, "2026-10-20"),
+            new Documento("PLN-014", "Plano estructural de cimentaciones", TipoDocumento.PLANO, EstadoDocumento.REVISADO, "2026-10-21"),
+            new Documento("ACT-008", "Acta de coordinación técnica", TipoDocumento.ACTA, EstadoDocumento.PENDIENTE, "2026-10-22"),
+            new Documento("INF-022", "Informe de avance semanal", TipoDocumento.INFORME, EstadoDocumento.APROBADO, "2026-10-23")
+          ].forEach((documento) => this.expediente.agregarDocumento(documento));
+
+          this.invalidarIterador();
+          this.renderizarColeccion();
+          this.mostrarMensaje(
+            "mensajeColeccion",
+            "Expediente de ejemplo cargado: 4 documentos, de los cuales 2 están pendientes.",
+            "exito"
+          );
+        } catch (error) {
+          this.mostrarMensaje("mensajeColeccion", error.message, "error");
+        }
+      }
+
+      vaciarExpediente() {
+        this.expediente.vaciar();
+        this.invalidarIterador();
+        this.renderizarColeccion();
+        this.mostrarMensaje("mensajeColeccion", "El expediente fue vaciado.", "info");
+      }
+
+      crearRecorrido() {
+        if (this.expediente.cantidad() === 0) {
+          this.mostrarMensaje("mensajeRecorrido", "Agregue documentos antes de crear un iterador.", "error");
+          return;
+        }
+
+        this.tipoRecorrido = document.getElementById("tipoRecorrido").value;
+        this.iteradorActivo = this.tipoRecorrido === "PENDIENTES"
+          ? this.expediente.crearIteradorPendientes()
+          : this.expediente.crearIteradorTodos();
+
+        this.elementosVisitados = 0;
+        this.traza = [
+          `El cliente solicitó ${this.nombreClaseIterador()}.`,
+          "ExpedienteDocumental creó un iterador usando un snapshot privado.",
+          "El iterador quedó posicionado antes del primer elemento."
+        ];
+
+        this.habilitarControles(true);
+        this.ocultarDocumentoActual();
+        this.actualizarTraza();
+        this.actualizarCodigoCliente();
+        this.actualizarEstadoIterador();
+        this.mostrarMensaje("mensajeRecorrido", "Iterador creado. Presione “Siguiente” o “Recorrer completo”.", "exito");
+      }
+
+      avanzar() {
+        if (!this.iteradorActivo) {
+          return;
+        }
+
+        if (!this.iteradorActivo.haySiguiente()) {
+          this.traza.push("haySiguiente() devolvió false: el recorrido finalizó.");
+          this.actualizarTraza();
+          this.actualizarEstadoIterador();
+          this.mostrarMensaje("mensajeRecorrido", "No existen más documentos en este recorrido.", "info");
+          document.getElementById("btnSiguiente").disabled = true;
+          document.getElementById("btnRecorrerTodo").disabled = true;
+          return;
+        }
+
+        this.traza.push("haySiguiente() devolvió true.");
+        const documento = this.iteradorActivo.siguiente();
+        this.elementosVisitados += 1;
+        this.traza.push(`siguiente() devolvió ${documento.obtenerResumen()}.`);
+        this.mostrarDocumento(documento);
+        this.actualizarTraza();
+        this.actualizarEstadoIterador();
+
+        if (!this.iteradorActivo.haySiguiente()) {
+          this.traza.push("El elemento mostrado es el último del snapshot.");
+          this.actualizarTraza();
+        }
+      }
+
+      recorrerCompleto() {
+        if (!this.iteradorActivo) {
+          return;
+        }
+
+        let recorridos = 0;
+        while (this.iteradorActivo.haySiguiente()) {
+          const documento = this.iteradorActivo.siguiente();
+          this.elementosVisitados += 1;
+          recorridos += 1;
+          this.traza.push(`while → siguiente(): ${documento.obtenerResumen()}.`);
+          this.mostrarDocumento(documento);
+        }
+
+        this.traza.push(`Recorrido completo finalizado; se avanzaron ${recorridos} elemento(s) adicionales.`);
+        this.actualizarTraza();
+        this.actualizarEstadoIterador();
+        document.getElementById("btnSiguiente").disabled = true;
+        document.getElementById("btnRecorrerTodo").disabled = true;
+        this.mostrarMensaje("mensajeRecorrido", "Recorrido completado sin acceder al arreglo interno.", "exito");
+      }
+
+      reiniciarRecorrido() {
+        if (!this.iteradorActivo) {
+          return;
+        }
+        this.iteradorActivo.reiniciar();
+        this.elementosVisitados = 0;
+        this.traza.push("reiniciar() devolvió el iterador a su posición inicial.");
+        this.ocultarDocumentoActual();
+        document.getElementById("btnSiguiente").disabled = false;
+        document.getElementById("btnRecorrerTodo").disabled = false;
+        this.actualizarTraza();
+        this.actualizarEstadoIterador();
+        this.mostrarMensaje("mensajeRecorrido", "Recorrido reiniciado.", "info");
+      }
+
+      renderizarColeccion() {
+        const iterador = this.expediente.crearIteradorTodos();
+        const filas = [];
+        const tipos = new Set();
+        let pendientes = 0;
+        let indice = 1;
+
+        while (iterador.haySiguiente()) {
+          const documento = iterador.siguiente();
+          const datos = documento.toJSON();
+          tipos.add(datos.tipo);
+          if (documento.estaPendiente()) {
+            pendientes += 1;
+          }
+          filas.push(`
+            <tr>
+              <td>${indice}</td>
+              <td><strong>${this.escaparHtml(datos.codigo)}</strong></td>
+              <td>${this.escaparHtml(datos.titulo)}</td>
+              <td>${this.escaparHtml(this.formatearEtiqueta(datos.tipo))}</td>
+              <td><span class="insignia ${this.claseEstado(datos.estado)}">${this.escaparHtml(this.formatearEtiqueta(datos.estado))}</span></td>
+              <td>${this.escaparHtml(datos.fechaRegistro || "No registrada")}</td>
+            </tr>
+          `);
+          indice += 1;
+        }
+
+        document.getElementById("cuerpoDocumentos").innerHTML = filas.length > 0
+          ? filas.join("")
+          : '<tr><td colspan="6" class="estado-vacio-tabla">El expediente todavía no contiene documentos.</td></tr>';
+
+        document.getElementById("metricaTotal").textContent = String(this.expediente.cantidad());
+        document.getElementById("metricaPendientes").textContent = String(pendientes);
+        document.getElementById("metricaTipos").textContent = String(tipos.size);
+      }
+
+      mostrarDocumento(documento) {
+        const datos = documento.toJSON();
+        document.getElementById("resultadoVacio").style.display = "none";
+        document.getElementById("documentoActual").classList.add("visible");
+        document.getElementById("secuenciaActual").textContent = `Elemento visitado ${this.elementosVisitados}`;
+        document.getElementById("tituloActual").textContent = datos.titulo;
+        document.getElementById("codigoActual").textContent = datos.codigo;
+        document.getElementById("tipoActual").textContent = this.formatearEtiqueta(datos.tipo);
+        document.getElementById("estadoActual").textContent = this.formatearEtiqueta(datos.estado);
+        document.getElementById("fechaActual").textContent = datos.fechaRegistro || "No registrada";
+        document.getElementById("recorridoActual").textContent = this.tipoRecorrido === "PENDIENTES" ? "Solo pendientes" : "Todos";
+      }
+
+      ocultarDocumentoActual() {
+        document.getElementById("resultadoVacio").style.display = "grid";
+        document.getElementById("documentoActual").classList.remove("visible");
+      }
+
+      actualizarEstadoIterador() {
+        const nombre = this.iteradorActivo ? this.nombreClaseIterador() : "Ninguno";
+        const haySiguiente = this.iteradorActivo ? this.iteradorActivo.haySiguiente() : false;
+        document.getElementById("estadoIterador").innerHTML = `
+          <strong>Clase:</strong> ${this.escaparHtml(nombre)}<br>
+          <strong>Visitados:</strong> ${this.elementosVisitados}<br>
+          <strong>haySiguiente():</strong> ${haySiguiente}
+        `;
+      }
+
+      actualizarTraza() {
+        document.getElementById("traza").innerHTML = this.traza
+          .map((paso) => `<li>${this.escaparHtml(paso)}</li>`)
+          .join("");
+      }
+
+      actualizarCodigoCliente() {
+        const creador = this.tipoRecorrido === "PENDIENTES"
+          ? "crearIteradorPendientes"
+          : "crearIteradorTodos";
+        document.getElementById("codigoCliente").textContent = [
+          `const iterador = expediente.${creador}();`,
+          "",
+          "while (iterador.haySiguiente()) {",
+          "  const documento = iterador.siguiente();",
+          "  mostrar(documento);",
+          "}",
+          "",
+          "// El cliente no accede a expediente.#documentos."
+        ].join("\n");
+      }
+
+      invalidarIterador(mensaje = "") {
+        this.iteradorActivo = null;
+        this.tipoRecorrido = null;
+        this.elementosVisitados = 0;
+        this.traza = [];
+        this.habilitarControles(false);
+        this.ocultarDocumentoActual();
+        document.getElementById("estadoIterador").innerHTML = "<strong>Estado:</strong> todavía no se ha creado un iterador.";
+        document.getElementById("traza").innerHTML = "<li>La traza mostrará cómo el cliente solicita y consume el iterador.</li>";
+        document.getElementById("codigoCliente").textContent = "// Cree un iterador para generar el código de demostración.";
+        if (mensaje) {
+          this.mostrarMensaje("mensajeRecorrido", mensaje, "info");
+        } else {
+          this.ocultarMensaje("mensajeRecorrido");
+        }
+      }
+
+      habilitarControles(habilitar) {
+        document.getElementById("btnSiguiente").disabled = !habilitar;
+        document.getElementById("btnRecorrerTodo").disabled = !habilitar;
+        document.getElementById("btnReiniciar").disabled = !habilitar;
+      }
+
+      nombreClaseIterador() {
+        return this.tipoRecorrido === "PENDIENTES"
+          ? "IteradorDocumentosPendientes"
+          : "IteradorTodosDocumentos";
+      }
+
+      claseEstado(estado) {
+        const clases = {
+          PENDIENTE: "insignia-pendiente",
+          REVISADO: "insignia-revisado",
+          APROBADO: "insignia-aprobado"
+        };
+        return clases[estado] || "insignia-revisado";
+      }
+
+      formatearEtiqueta(valor) {
+        const texto = String(valor ?? "").toLowerCase();
+        return texto.charAt(0).toUpperCase() + texto.slice(1);
+      }
+
+      mostrarMensaje(id, texto, tipo) {
+        const elemento = document.getElementById(id);
+        elemento.textContent = texto;
+        elemento.className = `mensaje visible ${tipo}`;
+      }
+
+      ocultarMensaje(id) {
+        const elemento = document.getElementById(id);
+        elemento.textContent = "";
+        elemento.className = "mensaje";
+      }
+
+      escaparHtml(valor) {
+        return String(valor)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      window.appIterator = new RegistroDocumentalApp();
+    });
+  </script>
+</body>
+</html>

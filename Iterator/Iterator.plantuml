@@ -1,0 +1,154 @@
+@startuml
+' Actividad 03 - Patrón 02 - Grupo 4
+' Patrón de comportamiento Iterator aplicado a expedientes documentales
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam classAttributeIconSize 0
+skinparam classFontName Arial
+skinparam classFontSize 13
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor #1F4D7A
+skinparam ClassBorderColor #1F4D7A
+skinparam ClassBackgroundColor #F7FAFD
+skinparam ClassHeaderBackgroundColor #DCEAF7
+skinparam InterfaceBackgroundColor #FFF8DD
+skinparam InterfaceBorderColor #C99B24
+skinparam NoteBorderColor #D1A52B
+skinparam NoteBackgroundColor #FFF8DD
+skinparam linetype ortho
+
+title Patrón 02 - Gestión de expedientes documentales con Iterator\nGrupo 4
+
+interface IteradorDocumento <<Iterator>> {
+  + primero() : void
+  + haySiguiente() : boolean
+  + siguiente() : Documento [0..1]
+  + actual() : Documento [0..1]
+  + reiniciar() : void
+}
+
+interface ColeccionDocumentos <<Aggregate>> {
+  + crearIteradorTodos() : IteradorDocumento
+  + crearIteradorPendientes() : IteradorDocumento
+}
+
+class Documento <<Elemento>> {
+  - codigo : String
+  - titulo : String
+  - tipo : TipoDocumento
+  - estado : EstadoDocumento
+  - fechaRegistro : Date
+  --
+  + Documento(codigo : String, titulo : String, tipo : TipoDocumento, estado : EstadoDocumento, fechaRegistro : Date)
+  + estaPendiente() : boolean
+  + obtenerResumen() : String
+  + toJSON() : Object
+}
+
+enum TipoDocumento {
+  CONTRATO
+  INFORME
+  PLANO
+  ACTA
+  OTRO
+}
+
+enum EstadoDocumento {
+  PENDIENTE
+  REVISADO
+  APROBADO
+}
+
+class ExpedienteDocumental <<ConcreteAggregate>> {
+  - numero : String
+  - asunto : String
+  - documentos : List<Documento>
+  --
+  + ExpedienteDocumental(numero : String, asunto : String)
+  + agregarDocumento(documento : Documento) : void
+  + crearIteradorTodos() : IteradorDocumento
+  + crearIteradorPendientes() : IteradorDocumento
+  + cantidad() : Integer
+  + vaciar() : void
+  + obtenerResumen() : String
+  - obtenerSnapshot() : List<Documento>
+}
+
+class IteradorTodosDocumentos <<ConcreteIterator>> {
+  - documentos : List<Documento>
+  - posicion : Integer
+  - documentoActual : Documento [0..1]
+  --
+  + IteradorTodosDocumentos(documentos : List<Documento>)
+  + primero() : void
+  + haySiguiente() : boolean
+  + siguiente() : Documento [0..1]
+  + actual() : Documento [0..1]
+  + reiniciar() : void
+}
+
+class IteradorDocumentosPendientes <<ConcreteIterator>> {
+  - documentosPendientes : List<Documento>
+  - posicion : Integer
+  - documentoActual : Documento [0..1]
+  --
+  + IteradorDocumentosPendientes(documentos : List<Documento>)
+  + primero() : void
+  + haySiguiente() : boolean
+  + siguiente() : Documento [0..1]
+  + actual() : Documento [0..1]
+  + reiniciar() : void
+}
+
+class RegistroDocumentalApp <<Client>> {
+  - expediente : ExpedienteDocumental
+  - iteradorActivo : IteradorDocumento [0..1]
+  - tipoRecorrido : String
+  --
+  + agregarDocumentoDesdeFormulario() : void
+  + cargarEjemplo() : void
+  + crearRecorrido(tipo : String) : void
+  + avanzar() : void
+  + recorrerCompleto() : void
+  + reiniciarRecorrido() : void
+  + renderizarColeccion() : void
+}
+
+ColeccionDocumentos <|.. ExpedienteDocumental
+IteradorDocumento <|.. IteradorTodosDocumentos
+IteradorDocumento <|.. IteradorDocumentosPendientes
+
+ExpedienteDocumental "1" *-- "0..*" Documento : contiene
+Documento --> TipoDocumento
+Documento --> EstadoDocumento
+
+ExpedienteDocumental ..> IteradorTodosDocumentos : <<crea>>
+ExpedienteDocumental ..> IteradorDocumentosPendientes : <<crea>>
+IteradorTodosDocumentos --> "0..*" Documento : recorre snapshot
+IteradorDocumentosPendientes --> "0..*" Documento : recorre pendientes
+
+RegistroDocumentalApp ..> ColeccionDocumentos : utiliza
+RegistroDocumentalApp ..> IteradorDocumento : avanza mediante
+
+note right of ExpedienteDocumental
+  La colección interna permanece privada.
+  El cliente no recibe el arreglo de documentos;
+  solicita un iterador independiente para cada recorrido.
+end note
+
+note bottom of IteradorDocumentosPendientes
+  Encapsula el criterio de recorrido:
+  únicamente documentos con estado PENDIENTE.
+end note
+
+note bottom of RegistroDocumentalApp
+  El cliente usa primero(), haySiguiente(),
+  siguiente() y reiniciar() sin conocer
+  si el expediente almacena un arreglo,
+  una lista o cualquier otra estructura.
+end note
+
+@enduml
